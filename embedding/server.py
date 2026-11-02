@@ -57,6 +57,14 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
+    def do_GET(self):
+        if self.path != "/ready":
+            return self.reply(404, {"error": "not found"})
+        if not hmac.compare_digest(self.headers.get("Authorization", "").encode(), b"Bearer " + TOKEN):
+            return self.reply(401, {"error": "unauthorized"})
+        ready = SESSION is not None and TOKENIZER is not None and SESSION.get_providers()[0] == "CUDAExecutionProvider"
+        self.reply(200 if ready else 503, {"ready": ready})
+
     def do_POST(self):
         if self.path != "/embed":
             return self.reply(404, {"error": "not found"})

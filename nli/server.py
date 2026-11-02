@@ -35,7 +35,12 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_GET(self):
-        self.reply(200 if self.path == "/health" else 404, {"status": "ready"} if self.path == "/health" else {})
+        if self.path != "/ready":
+            return self.reply(404, {})
+        if not hmac.compare_digest(self.headers.get("Authorization", "").encode(), b"Bearer " + TOKEN):
+            return self.reply(401, {})
+        ready = next(model.parameters()).device.type == "cuda"
+        self.reply(200 if ready else 503, {"ready": ready})
 
     def do_POST(self):
         if self.path != "/nli":

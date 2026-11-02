@@ -13,6 +13,8 @@ with open(os.environ['RERANK_TOKEN_FILE'], 'rb') as token_file:
 if len(TOKEN) < 32:
     raise RuntimeError('Token too short')
 BUSY = BoundedSemaphore(1)
+model = None
+tokenizer = None
 MAX_BODY = 262144
 
 class Handler(BaseHTTPRequestHandler):
@@ -26,6 +28,14 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Length', str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
+
+    def do_GET(self):
+        if self.path != '/ready':
+            return self.reply(404, {'error': 'not found'})
+        if not hmac.compare_digest(self.headers.get('Authorization', '').encode(), b'Bearer ' + TOKEN):
+            return self.reply(401, {'error': 'unauthorized'})
+        ready = model is not None and tokenizer is not None and next(model.parameters()).device.type == 'cuda'
+        self.reply(200 if ready else 503, {'ready': ready})
 
     def do_POST(self):
         if self.path != '/rerank':
@@ -68,8 +78,7 @@ if __name__ == '__main__':
     model = AutoModelForSequenceClassification.from_pretrained(repo, revision=revision, torch_dtype=torch.float16, local_files_only=True).to('cuda').eval()
     logging.basicConfig(level=logging.INFO)
     server = ThreadingHTTPServer((HOST, PORT), Handler)
-    if os.environ.get("RERANK_TLS_CERT"):
-        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        context.load_cert_chain(os.environ["RERANK_TLS_CERT"], os.environ["RERANK_TLS_KEY"])
-        server.socket = context.wrap_socket(server.socket, server_side=True)
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(os.environ["RERANK_TLS_CERT"], os.environ["RERANK_TLS_KEY"])
+    server.socket = context.wrap_socket(server.socket, server_side=True)
     server.serve_forever()
