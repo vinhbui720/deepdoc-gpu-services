@@ -1,15 +1,13 @@
-name: GPU CI and deploy
+name: GPU CI and deploy gate
 on:
   pull_request:
     paths: ['embedding/**', 'reranker/**', 'nli/**', 'models.json', 'deploy/**', '.github/workflows/**']
   push:
     branches: [main]
     paths: ['embedding/**', 'reranker/**', 'nli/**', 'models.json', 'deploy/**', '.github/workflows/**']
+  workflow_dispatch:
 permissions:
   contents: read
-concurrency:
-  group: gpu-production
-  cancel-in-progress: false
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -23,20 +21,5 @@ jobs:
       - run: python -m pip install numpy
       - run: for service in embedding reranker nli; do (cd "$service" && python -m unittest discover -p 'test_*.py'); done
       - run: python -m unittest discover -s deploy -p 'test_*.py'
-  deploy:
-    if: github.event_name == 'push'
-    needs: test
-    runs-on: [self-hosted, linux, station2]
-    environment: production
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - name: Deploy changed services
-        env:
-          DEPLOY_SHA: ${{ github.sha }}
-          DEPLOY_BEFORE: ${{ github.event.before }}
-          DEPLOY_ROOT: ${{ vars.GPU_DEPLOY_ROOT }}
-        run: python deploy/release.py
+  # No deploy job: manual dispatch runs tests only. Add deployment after runner,
+  # units, pinned model provisioning, and authenticated functional readiness are verified.
