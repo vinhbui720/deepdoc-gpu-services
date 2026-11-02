@@ -1,0 +1,12 @@
+# Inactive template. Replace false guard only after protected environment, runner,
+# host key verification, secret provisioning, and operator approval are configured.
+name: deploy template (disabled)
+on:
+  workflow_dispatch:
+jobs:
+  deploy:
+    if: ${{ false }}
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - run: echo 'Deployment requires reviewed, service-specific procedure; no remote command configured.'
